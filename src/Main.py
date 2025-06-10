@@ -3,8 +3,8 @@ import sys
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QApplication, QLabel, QSlider
 
-from src.GameCanvas import GameCanvas
-from src.GameOfLife import GameOfLife
+from GameCanvas import GameCanvas
+from GameOfLife import GameOfLife
 
 
 class ConwayMainWindow(QMainWindow):
