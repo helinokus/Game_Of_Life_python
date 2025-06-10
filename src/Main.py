@@ -8,6 +8,7 @@ from src.GameOfLife import GameOfLife
 
 
 class ConwayMainWindow(QMainWindow):
+
     """
     Główne okno aplikacji dla Gry w Życie Conwaya.
 
