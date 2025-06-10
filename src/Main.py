@@ -1,88 +1,134 @@
-import tkinter as tk
+import sys
 
-CELL_SIZE = 20
-WIDTH = 50
-HEIGHT = 50
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QApplication, QLabel, QSlider
+
+from src.GameCanvas import GameCanvas
+from src.GameOfLife import GameOfLife
 
 
-class GameGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Gра в жизнь — Conway")
+class ConwayMainWindow(QMainWindow):
+    """
+    Główne okno aplikacji dla Gry w Życie Conwaya.
 
-        main_frame = tk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+    Zapewnia interfejs użytkownika z wizualizacją gry i przyciskami sterowania.
 
-        self.canvas_frame = tk.Frame(main_frame)
-        self.canvas_frame.pack(side=tk.LEFT)
+    Attributes:
+        game (GameOfLife): Instancja logiki gry
+        canvas (GameCanvas): Widget wizualny do wyświetlania gry
+        is_running (bool): Aktualny stan symulacji
+        timer (QTimer): Timer do automatycznych kroków symulacji
+        speed_slider (QSlider): Kontrolka prędkości symulacji
+        speed_value_label (QLabel): Wyświetlanie aktualnego ustawienia prędkości
+    """
 
-        self.canvas = tk.Canvas(
-            self.canvas_frame,
-            width=WIDTH * CELL_SIZE,
-            height=HEIGHT * CELL_SIZE,
-            bg="white",
-            highlightthickness=2,
-            highlightbackground="red"
-        )
-        self.canvas.pack()
+    def __init__(self):
+        """
+        Inicjalizuje główne okno aplikacji.
+        """
+        super().__init__()
+        self.setWindowTitle("Conway's Game of Life")
 
-        self.control_frame = tk.Frame(main_frame, padx=10, pady=10, bg="lightgray")
-        self.control_frame.pack(side=tk.RIGHT, fill=tk.Y)
+        self.game = GameOfLife(50, 50, 5)
+        self.canvas = GameCanvas(self.game)
+        self.is_running = False
 
-        tk.Label(self.control_frame, text="Управление", bg="lightgray").pack(pady=10)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.step)
 
-        tk.Button(self.control_frame, text="Показать квадрат", command=self.draw_test_square).pack(pady=5)
-        tk.Button(self.control_frame, text="Показать большой квадрат", command=self.draw_big_square).pack(pady=5)
-        tk.Button(self.control_frame, text="Показать сетку", command=self.draw_grid).pack(pady=5)
-        tk.Button(self.control_frame, text="Очистить", command=self.clear_canvas).pack(pady=5)
+        self.setup_ui()
 
-    def draw_test_square(self):
-        print("Рисуем квадрат...")
-        self.canvas.delete("all")
-        # Рисуем квадрат с черной границей и смещением от края
-        self.canvas.create_rectangle(
-            10, 10, 10 + CELL_SIZE, 10 + CELL_SIZE,
-            fill="red",
-            outline="black",
-            width=2
-        )
+    def setup_ui(self):
+        """
+        Tworzy i układa elementy interfejsu użytkownika.
+        """
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
 
-    def draw_big_square(self):
-        print("Рисуем большой квадрат...")
-        self.canvas.delete("all")
-        # Рисуем большой квадрат в центре
-        center_x = (WIDTH * CELL_SIZE) // 2
-        center_y = (HEIGHT * CELL_SIZE) // 2
-        size = CELL_SIZE * 3
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setSpacing(25)
 
-        self.canvas.create_rectangle(
-            center_x - size // 2, center_y - size // 2,
-            center_x + size // 2, center_y + size // 2,
-            fill="blue",
-            outline="black",
-            width=3
-        )
+        self.canvas = GameCanvas(self.game)
+        main_layout.addWidget(self.canvas, 75)
 
-    def draw_grid(self):
-        print("Рисуем сетку...")
-        self.canvas.delete("all")
+        control_layout = QVBoxLayout()
 
-        # Рисуем вертикальные линии
-        for i in range(WIDTH + 1):
-            x = i * CELL_SIZE
-            self.canvas.create_line(x, 0, x, HEIGHT * CELL_SIZE, fill="lightgray")
+        btn_random = QPushButton("Wygeneruj randomowo")
+        btn_random.clicked.connect(self.generate_random)
+        control_layout.addWidget(btn_random)
 
-        # Рисуем горизонтальные линии
-        for i in range(HEIGHT + 1):
-            y = i * CELL_SIZE
-            self.canvas.create_line(0, y, WIDTH * CELL_SIZE, y, fill="lightgray")
+        btn_clear = QPushButton("Wyczysc")
+        btn_clear.clicked.connect(self.clear_grid)
+        control_layout.addWidget(btn_clear)
 
-    def clear_canvas(self):
-        print("Очищаем canvas...")
-        self.canvas.delete("all")
+        btn_start = QPushButton("Start")
+        btn_start.clicked.connect(self.start_simulation)
+        control_layout.addWidget(btn_start)
+
+        btn_stop = QPushButton("Stop")
+        btn_stop.clicked.connect(self.stop_simulation)
+        control_layout.addWidget(btn_stop)
+
+        btn_step = QPushButton("Krok")
+        btn_step.clicked.connect(self.step)
+        control_layout.addWidget(btn_step)
+
+        speed_label = QLabel("Predkość:")
+        control_layout.addWidget(speed_label)
+
+        self.speed_slider = QSlider(Qt.Horizontal)
+        self.speed_slider.setRange(1, 200)
+        self.speed_slider.setValue(25)
+        self.speed_slider.valueChanged.connect(self.update_simulation_speed)
+        control_layout.addWidget(self.speed_slider)
+
+        self.speed_value_label = QLabel(f"Prędkość teraz: {self.speed_slider.value()} ms")
+        control_layout.addWidget(self.speed_value_label)
+
+        control_layout.addStretch()
+
+        main_layout.addLayout(control_layout)
+
+        self.setFixedSize(self.canvas.width() + 250, self.canvas.height()+100)
+
+    def generate_random(self):
+        """Generuje nową losową konfigurację początkową."""
+        self.game.clear()
+        self.game.init_grid(5)
+        self.canvas.update()
+
+    def clear_grid(self):
+        """Czyści całą siatkę gry."""
+        self.game.clear()
+        self.canvas.update()
+
+    def start_simulation(self):
+        """Rozpoczyna automatyczną symulację jeśli nie jest już uruchomiona."""
+        if not self.is_running:
+            self.is_running = True
+            self.timer.start(self.speed_slider.value())
+
+    def stop_simulation(self):
+        """Zatrzymuje automatyczną symulację jeśli jest obecnie uruchomiona."""
+        if self.is_running:
+            self.is_running = False
+            self.timer.stop()
+
+    def step(self):
+        """Wykonuje pojedynczy krok symulacji."""
+        self.game.update()
+        self.canvas.update()
+
+    def update_simulation_speed(self):
+        """Aktualizuje prędkość symulacji na podstawie wartości slidera."""
+        new_speed = self.speed_slider.value()
+        self.timer.setInterval(new_speed)
+        self.speed_value_label.setText(f"Prędkość teraz: {new_speed} ms")
+
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = GameGUI(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    window = ConwayMainWindow()
+    window.show()
+    sys.exit(app.exec_())
